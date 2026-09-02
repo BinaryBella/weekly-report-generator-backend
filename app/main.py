@@ -28,6 +28,7 @@ from app.services.report_service import (
     ReportAccessDeniedError,
     ReportNotEditableError,
     ReportNotFoundError,
+    ReportTransitionError,
     ReportValidationError,
 )
 
@@ -152,6 +153,16 @@ def create_app() -> FastAPI:
         _: Request, exc: ReportValidationError
     ) -> JSONResponse:
         """Translate an inconsistent report payload into ``400 Bad Request``."""
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": str(exc)},
+        )
+
+    @app.exception_handler(ReportTransitionError)
+    async def _report_transition_handler(
+        _: Request, exc: ReportTransitionError
+    ) -> JSONResponse:
+        """Translate an illegal review-workflow transition into ``400``."""
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"detail": str(exc)},
