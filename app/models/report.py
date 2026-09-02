@@ -32,6 +32,14 @@ class ReportStatus(str, Enum):
     Team members only ever create reports in :attr:`DRAFT`; every other
     transition is owned by a dedicated workflow endpoint, never the generic
     update route.
+
+    Review cycle (Section 3)::
+
+        DRAFT ──submit──▶ SUBMITTED ──approve──▶ APPROVED
+                             │  ▲
+                request-changes │  │ resubmit
+                             ▼  │
+                       NEEDS_CORRECTION
     """
 
     DRAFT = "DRAFT"
@@ -58,6 +66,22 @@ class TaskStatus(str, Enum):
 EDITABLE_STATUSES: frozenset[ReportStatus] = frozenset(
     {ReportStatus.DRAFT, ReportStatus.NEEDS_CORRECTION}
 )
+
+# Legal status transitions. A move not listed here is rejected by the service
+# with a ``ReportTransitionError`` (translated to ``400`` by the API layer).
+ALLOWED_TRANSITIONS: dict[ReportStatus, frozenset[ReportStatus]] = {
+    ReportStatus.DRAFT: frozenset({ReportStatus.SUBMITTED}),
+    ReportStatus.SUBMITTED: frozenset(
+        {ReportStatus.APPROVED, ReportStatus.NEEDS_CORRECTION}
+    ),
+    ReportStatus.NEEDS_CORRECTION: frozenset({ReportStatus.SUBMITTED}),
+    ReportStatus.APPROVED: frozenset(),
+}
+
+
+def can_transition(current: ReportStatus, target: ReportStatus) -> bool:
+    """Whether *current* → *target* is a legal review-workflow move."""
+    return target in ALLOWED_TRANSITIONS.get(current, frozenset())
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +124,51 @@ class HoursWorkedBreakdown(BaseModel):
     other: float = 0.0
 
 
+class ReviewComment(BaseModel):
+    """One "request changes" note left by a manager during the review cycle.
+
+    The full list is kept per report (not just the latest) so the team member -
+    and any manager reviewing later - can read the whole correction history.
+
+    :attr:`against_version` ties the note to the :class:`ReportVersion` snapshot
+    the manager was looking at when they wrote it, so it stays clear which
+    version of the week's report a given comment was made against.
+    """
+
+    comment: str
+    manager_id: str
+    manager_name: str
+    against_version: int
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class ReportVersion(BaseModel):
+    """A frozen copy of a report's content at the moment a manager sent it back.
+
+    Each correction cycle (``NEEDS_CORRECTION`` -> edited -> resubmitted) leaves
+    one of these behind, so every past version of that week's report stays
+    visible instead of being overwritten by the resubmission.
+    """
+
+    version: int
+    # When this content was archived (i.e. when the manager sent it back).
+    snapshot_at: datetime = Field(default_factory=_utcnow)
+    # When the team member submitted this particular version for review.
+    submitted_at: datetime | None = None
+    # Which status the report held when this snapshot was taken (always
+    # ``SUBMITTED`` today - it is captured when the manager requests changes).
+    status_at_snapshot: ReportStatus
+
+    week_start_date: date
+    week_end_date: date
+    tasks_planned_next_week: str
+    tasks_completed: list[ReportTask] = Field(default_factory=list)
+    blockers: list[Blocker] = Field(default_factory=list)
+    achievements: list[Achievement] = Field(default_factory=list)
+    hours_worked_breakdown: HoursWorkedBreakdown | None = None
+    notes_or_links: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Document
 # ---------------------------------------------------------------------------
@@ -117,6 +186,13 @@ class Report(Document):
     achievements: list[Achievement] = Field(default_factory=list)
     hours_worked_breakdown: HoursWorkedBreakdown | None = None
     notes_or_links: str | None = None
+
+    # -- Review workflow (Section 3) -----------------------------------------
+    review_comments: list[ReviewComment] = Field(default_factory=list)
+    version_history: list[ReportVersion] = Field(default_factory=list)
+    submitted_at: datetime | None = None
+    reviewed_at: datetime | None = None
+
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
@@ -127,6 +203,36 @@ class Report(Document):
     def is_editable(self) -> bool:
         """Whether the generic update route is allowed to mutate this report."""
         return self.status in EDITABLE_STATUSES
+
+    @property
+    def latest_review_comment(self) -> ReviewComment | None:
+        """The most recent manager correction note, if the report has any."""
+        return self.review_comments[-1] if self.review_comments else None
+
+    @property
+    def next_version_number(self) -> int:
+        """The version number the next archived snapshot will carry."""
+        return len(self.version_history) + 1
+
+    def snapshot(self) -> ReportVersion:
+        """Return a frozen copy of the current content for :attr:`version_history`."""
+        return ReportVersion(
+            version=self.next_version_number,
+            submitted_at=self.submitted_at,
+            status_at_snapshot=self.status,
+            week_start_date=self.week_start_date,
+            week_end_date=self.week_end_date,
+            tasks_planned_next_week=self.tasks_planned_next_week,
+            tasks_completed=[t.model_copy(deep=True) for t in self.tasks_completed],
+            blockers=[b.model_copy(deep=True) for b in self.blockers],
+            achievements=[a.model_copy(deep=True) for a in self.achievements],
+            hours_worked_breakdown=(
+                self.hours_worked_breakdown.model_copy(deep=True)
+                if self.hours_worked_breakdown is not None
+                else None
+            ),
+            notes_or_links=self.notes_or_links,
+        )
 
     def touch(self) -> None:
         """Bump :attr:`updated_at` to the current UTC time."""
