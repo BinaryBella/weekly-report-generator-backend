@@ -10,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
 
 from app.core.config import settings
-from app.models.user import __beanie_models__
+from app.models import document_models
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ async def init_db(client: AsyncIOMotorClient | None = None) -> None:
             ) from exc
 
     database = _client[settings.mongodb_db_name]
-    await init_beanie(database=database, document_models=list(__beanie_models__))
+    await init_beanie(database=database, document_models=list(document_models))
     logger.info("Connected to MongoDB database '%s'", settings.mongodb_db_name)
 
 
