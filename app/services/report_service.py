@@ -15,14 +15,9 @@ equivalent of wrapping the parent insert and every child insert in one
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-<<<<<<< Updated upstream
-=======
 from datetime import date, datetime, timezone
 
 from beanie.operators import In
->>>>>>> Stashed changes
 from bson.errors import InvalidId
 
 from app.models.project import Project
@@ -35,14 +30,8 @@ from app.models.report import (
     ReportTask,
     ReportVersion,
     ReviewComment,
-    can_transition,
-<<<<<<< Updated upstream
-=======
-    ReportVersion,
-    ReviewComment,
     TaskStatus,
     can_transition,
->>>>>>> Stashed changes
 )
 from app.models.user import Role, User, UserStatus
 from app.repositories.report_repository import ReportRepository
@@ -107,19 +96,6 @@ class ReportTransitionError(ReportServiceError):
         self.action = action
 
 
-<<<<<<< Updated upstream
-=======
-class ReportTransitionError(ReportServiceError):
-    """Raised when a review-workflow action is illegal from the current status."""
-
-    def __init__(self, current: ReportStatus, action: str) -> None:
-        super().__init__(
-            f"Cannot {action} a report in '{current.value}' status"
-        )
-        self.current = current
-        self.action = action
-
-
 class MemberNotFoundError(ReportServiceError):
     """Raised when a team-member profile is requested for an unknown user id."""
 
@@ -128,7 +104,6 @@ class MemberNotFoundError(ReportServiceError):
         self.user_id = user_id
 
 
->>>>>>> Stashed changes
 # ---------------------------------------------------------------------------
 # DTO -> embedded model mapping
 # ---------------------------------------------------------------------------
@@ -272,88 +247,6 @@ class ReportService:
 
         report.status = ReportStatus.APPROVED
         report.reviewed_at = _utcnow()
-        report.touch()
-        return await self._repo.save(report)
-
-    async def request_changes(
-        self, current_user: User, report_id: str, comment: str
-    ) -> Report:
-        """Send a submitted report back with one general correction comment.
-
-        Snapshots the reviewed content into :attr:`Report.version_history` so the
-        version the manager saw stays visible after the team member edits and
-        resubmits, appends *comment* to the review history, and moves the report
-        to ``NEEDS_CORRECTION`` (editable again by its owner).
-
-        The caller must be a Manager / Admin (enforced by the route).
-
-        Raises:
-            ReportNotFoundError: if the id is unknown.
-            ReportTransitionError: if the report is not currently ``SUBMITTED``.
-        """
-        report = await self._load(report_id)
-        if not can_transition(report.status, ReportStatus.NEEDS_CORRECTION):
-            raise ReportTransitionError(report.status, "request changes on")
-
-        snapshot = report.snapshot()
-        report.version_history.append(snapshot)
-        report.review_comments.append(
-            ReviewComment(
-                comment=comment,
-                manager_id=str(current_user.id),
-                manager_name=current_user.name,
-                against_version=snapshot.version,
-            )
-        )
-        report.status = ReportStatus.NEEDS_CORRECTION
-        report.reviewed_at = _utcnow()
-        report.touch()
-        return await self._repo.save(report)
-
-<<<<<<< Updated upstream
-=======
-    # -- Review workflow (Section 3) ---------------------------------------
-    async def submit_report(self, current_user: User, report_id: str) -> Report:
-        """Hand a report to the manager for review.
-
-        Legal from ``DRAFT`` (first submission) and ``NEEDS_CORRECTION``
-        (resubmission after edits); both move the report to ``SUBMITTED``.
-
-        Raises:
-            ReportNotFoundError: if the id is unknown.
-            ReportAccessDeniedError: if the caller is not the report's owner.
-            ReportTransitionError: if the report is already ``SUBMITTED`` or
-                ``APPROVED``.
-            ReportValidationError: if the report's content is inconsistent.
-        """
-        report = await self._load(report_id)
-        if report.user_id != str(current_user.id):
-            raise ReportAccessDeniedError(report_id)
-        if not can_transition(report.status, ReportStatus.SUBMITTED):
-            raise ReportTransitionError(report.status, "submit")
-
-        _assert_invariants(report)
-        report.status = ReportStatus.SUBMITTED
-        report.submitted_at = _utcnow()
-        report.touch()
-        return await self._repo.save(report)
-
-    async def approve_report(self, current_user: User, report_id: str) -> Report:
-        """Mark a submitted report as approved; no further edits are expected.
-
-        The caller must be a Manager / Admin (enforced by the route). Only a
-        ``SUBMITTED`` report can be approved.
-
-        Raises:
-            ReportNotFoundError: if the id is unknown.
-            ReportTransitionError: if the report is not currently ``SUBMITTED``.
-        """
-        report = await self._load(report_id)
-        if not can_transition(report.status, ReportStatus.APPROVED):
-            raise ReportTransitionError(report.status, "approve")
-
-        report.status = ReportStatus.APPROVED
-        report.reviewed_at = _utcnow()
         report.reviewed_by_id = str(current_user.id)
         report.reviewed_by_name = current_user.name
         report.touch()
@@ -396,7 +289,6 @@ class ReportService:
         report.touch()
         return await self._repo.save(report)
 
->>>>>>> Stashed changes
     # -- Queries --------------------------------------------------------------
     async def get_report(self, current_user: User, report_id: str) -> Report:
         """Return one report in full.
@@ -440,8 +332,6 @@ class ReportService:
         total = await self._repo.count_for_user(str(current_user.id), status=status)
         return items, total
 
-<<<<<<< Updated upstream
-=======
     async def list_all_reports(
         self,
         *,
@@ -933,37 +823,6 @@ class ReportService:
             },
             "recent_reports": recent,
         }
-
->>>>>>> Stashed changes
-    async def list_all_reports(
-        self,
-        *,
-        status: ReportStatus | None = None,
-        user_id: str | None = None,
-        project_id: str | None = None,
-        page: int = 1,
-        page_size: int = 20,
-    ) -> tuple[list[Report], int]:
-        """Return one page of every team member's reports (manager dashboard).
-
-        Access is restricted to Manager / Admin at the route; this method assumes
-        the caller has already been authorised. Private drafts are never
-        included - a report only reaches the dashboard once it is submitted.
-        """
-        if status is ReportStatus.DRAFT:
-            return [], 0
-        skip = (page - 1) * page_size
-        items = await self._repo.list_all(
-            status=status,
-            user_id=user_id,
-            project_id=project_id,
-            skip=skip,
-            limit=page_size,
-        )
-        total = await self._repo.count_all(
-            status=status, user_id=user_id, project_id=project_id
-        )
-        return items, total
 
     # -- Internals ----------------------------------------------------------
     async def _load(self, report_id: str) -> Report:

@@ -168,18 +168,6 @@ def create_app() -> FastAPI:
             content={"detail": str(exc)},
         )
 
-<<<<<<< Updated upstream
-=======
-    @app.exception_handler(ReportTransitionError)
-    async def _report_transition_handler(
-        _: Request, exc: ReportTransitionError
-    ) -> JSONResponse:
-        """Translate an illegal review-workflow transition into ``400``."""
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": str(exc)},
-        )
-
     @app.exception_handler(MemberNotFoundError)
     async def _member_not_found_handler(
         _: Request, __: MemberNotFoundError
@@ -190,7 +178,6 @@ def create_app() -> FastAPI:
             content={"detail": "Team member not found"},
         )
 
->>>>>>> Stashed changes
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(users_router, prefix=settings.api_v1_prefix)
     app.include_router(projects_router, prefix=settings.api_v1_prefix)

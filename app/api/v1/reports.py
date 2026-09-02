@@ -23,39 +23,6 @@ Access summary:
     * ``POST /reports/{id}/request-changes`` - Manager / Admin; SUBMITTED ->
                                                NEEDS_CORRECTION, with one comment.
 
-Managers never edit a team member's report *content* - they only drive its
-status and leave review comments through the workflow routes below.
-<<<<<<< Updated upstream
-    * ``POST /reports/``        - any authenticated user; creates a DRAFT owned by
-                                  the caller.
-    * ``GET  /reports/me``      - the caller's own report history (paginated).
-    * ``GET  /reports/{id}``    - the owner, or any Manager / Admin. A team member
-                                  asking for someone else's report gets ``403``.
-    * ``PUT  /reports/{id}``    - the owner only, and only while the report is in
-                                  DRAFT or NEEDS_CORRECTION (else ``400``).
-=======
-    * ``POST /reports/``         - any authenticated user; creates a DRAFT owned by
-                                   the caller.
-    * ``GET  /reports/``         - Manager / Admin only; every team member's
-                                   reports once they leave DRAFT (the review
-                                   dashboard), paginated and filterable by
-                                   status / user / project.
-    * ``GET  /reports/me``       - the caller's own report history, newest week
-                                   first (paginated, optional status filter).
-    * ``GET  /reports/{id}``     - the owner always; a Manager / Admin only once
-                                   the report has been submitted (a DRAFT is
-                                   private to its author -> ``403`` otherwise).
-    * ``GET  /reports/{id}/versions`` - past versions of that week's report, same
-                                       access as ``GET /reports/{id}``.
-    * ``PUT  /reports/{id}``     - the owner only, and only while the report is in
-                                   DRAFT or NEEDS_CORRECTION (else ``400``).
-    * ``POST /reports/{id}/submit``          - the owner; DRAFT / NEEDS_CORRECTION
-                                               -> SUBMITTED.
-    * ``POST /reports/{id}/approve``         - Manager / Admin; SUBMITTED ->
-                                               APPROVED.
-    * ``POST /reports/{id}/request-changes`` - Manager / Admin; SUBMITTED ->
-                                               NEEDS_CORRECTION, with one comment.
-
 Team dashboard (Section 4) - Manager / Admin only:
     * ``GET /reports/dashboard/status``          - per-member submission status for
                                                    a selected week (incl. NOT_STARTED).
@@ -77,7 +44,6 @@ Insights dashboard (Section 6) - Manager / Admin only:
 
 Managers never edit a team member's report *content* - they only drive its
 status and leave review comments through the workflow routes below.
->>>>>>> Stashed changes
 
 The controller stays thin: it delegates to
 :class:`~app.services.report_service.ReportService` and lets the domain errors
@@ -95,11 +61,7 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import CurrentUser, require_roles
 from app.models.report import ReportStatus
 from app.models.user import Role, User
-<<<<<<< Updated upstream
-=======
-from app.models.user import Role, User
 from app.schemas.auth import UserResponse
->>>>>>> Stashed changes
 from app.schemas.report import (
     ActivityFeedResponse,
     DashboardSummaryResponse,
@@ -114,10 +76,6 @@ from app.schemas.report import (
     ReportUpdateRequest,
     ReportVersionResponse,
     RequestChangesRequest,
-<<<<<<< Updated upstream
-=======
-    ReportVersionResponse,
-    RequestChangesRequest,
     StatusByMemberResponse,
     TasksCompletedTrendResponse,
     TeamReportStatus,
@@ -127,7 +85,6 @@ from app.schemas.report import (
     TeamStatusRow,
     WorkloadByProjectResponse,
     section_content,
->>>>>>> Stashed changes
 )
 from app.services.report_service import ReportService
 
@@ -168,52 +125,6 @@ async def create_report(
 
 
 @router.get(
-    "/",
-    response_model=ReportListResponse,
-    summary="List every team member's reports (Manager/Admin review dashboard)",
-)
-async def list_all_reports(
-    _: ManagerOrAdmin,
-    service: ReportSvc,
-    status_filter: Annotated[
-        ReportStatus | None,
-        Query(alias="status", description="Optional status filter"),
-    ] = None,
-    user_id: Annotated[
-        str | None, Query(description="Only reports owned by this user id")
-    ] = None,
-    project_id: Annotated[
-        str | None, Query(description="Only reports for this project id")
-    ] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
-) -> ReportListResponse:
-    """Return a paginated list of reports across all users, newest update first.
-
-    Intended for the manager's review dashboard: pass ``status=SUBMITTED`` to see
-    only what is currently awaiting review.
-
-    Raises:
-        HTTPException: ``403`` if the caller is a Team Member.
-    """
-    items, total = await service.list_all_reports(
-        status=status_filter,
-        user_id=user_id,
-        project_id=project_id,
-        page=page,
-        page_size=page_size,
-    )
-    return ReportListResponse(
-        items=[ReportListItemResponse.from_report(report) for report in items],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
-
-
-@router.get(
-<<<<<<< Updated upstream
-=======
     "/",
     response_model=ReportListResponse,
     summary="List every team member's reports (Manager/Admin review dashboard)",
@@ -574,7 +485,6 @@ async def member_profile(
 
 
 @router.get(
->>>>>>> Stashed changes
     "/me",
     response_model=ReportListResponse,
     summary="List the current user's report history",
