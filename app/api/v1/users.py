@@ -1,22 +1,35 @@
 """User-management endpoints with role-based access control.
 
 Access summary:
-    * ``GET /users/``               - Manager or Admin only.
-    * ``GET /users/{id}``           - own record for Team Members; anyone for Manager/Admin.
-    * ``PATCH /users/{id}/role``    - Admin only.
-    * ``PATCH /users/{id}/status``  - Manager or Admin only.
+    * ``GET  /users/``               - Manager or Admin only.
+    * ``POST /users/``               - Admin only; directly creates ("invites") a
+                                       team member account.
+    * ``GET  /users/{id}``           - own record for Team Members; anyone for Manager/Admin.
+    * ``PATCH /users/{id}/role``     - Admin only.
+    * ``PATCH /users/{id}/status``   - Manager or Admin only; disabling a user is
+                                       this app's equivalent of "removing" them -
+                                       their past reports/projects stay intact.
 """
 
 from __future__ import annotations
 
+import secrets
 from typing import Annotated
 
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pymongo.errors import DuplicateKeyError
 
 from app.api.deps import CurrentUser, require_roles
-from app.models.user import Role, User
-from app.schemas.auth import RoleUpdateRequest, StatusUpdateRequest, UserResponse
+from app.core.security import hash_password
+from app.models.user import Role, User, UserStatus
+from app.schemas.auth import (
+    RoleUpdateRequest,
+    StatusUpdateRequest,
+    UserCreateRequest,
+    UserCreateResponse,
+    UserResponse,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -52,6 +65,55 @@ async def list_users(
     query = User.find() if role is None else User.find(User.role == role)
     users = await query.sort("+created_at").skip(skip).limit(limit).to_list()
     return [UserResponse.from_user(user) for user in users]
+
+
+@router.post(
+    "/",
+    response_model=UserCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create ('invite') a team member account (Admin only)",
+)
+async def create_user(
+    payload: UserCreateRequest,
+    _: AdminOnly,
+) -> UserCreateResponse:
+    """Directly create a user account, standing in for an email-based invite.
+
+    Assigns *role* (default Team Member) immediately - no separate role-update
+    call is needed. When *password* is omitted, a random temporary password is
+    generated and returned once so the Admin can share it out of band; it is
+    never retrievable again.
+
+    Raises:
+        HTTPException: ``400`` if the email is already registered.
+    """
+    email = payload.email.lower()
+    if await User.find_one(User.email == email) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email already exists",
+        )
+
+    temporary_password = payload.password or secrets.token_urlsafe(12)
+    user = User(
+        name=payload.name,
+        email=email,
+        hashed_password=hash_password(temporary_password),
+        role=payload.role,
+        status=UserStatus.ACTIVE,
+    )
+    try:
+        await user.insert()
+    except DuplicateKeyError as exc:  # race between the check above and insert
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email already exists",
+        ) from exc
+
+    return UserCreateResponse(
+        user=UserResponse.from_user(user),
+        temporary_password=None if payload.password else temporary_password,
+    )
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get a single user")

@@ -193,6 +193,20 @@ class Report(Document):
     submitted_at: datetime | None = None
     reviewed_at: datetime | None = None
 
+<<<<<<< Updated upstream
+=======
+
+    # -- Review workflow (Section 3) -----------------------------------------
+    review_comments: list[ReviewComment] = Field(default_factory=list)
+    version_history: list[ReportVersion] = Field(default_factory=list)
+    submitted_at: datetime | None = None
+    reviewed_at: datetime | None = None
+    # Who took the most recent review action (approve / request-changes), for
+    # the manager dashboard's activity feed.
+    reviewed_by_id: str | None = None
+    reviewed_by_name: str | None = None
+
+>>>>>>> Stashed changes
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

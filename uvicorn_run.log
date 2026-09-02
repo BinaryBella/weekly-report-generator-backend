@@ -1,0 +1,8 @@
+INFO:     Started server process [16020]
+INFO:     Waiting for application startup.
+INFO:app.db.session:Connected to MongoDB database 'weekly_report'
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8010 (Press CTRL+C to quit)
+INFO:     127.0.0.1:23943 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53022 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54954 - "GET /openapi.json HTTP/1.1" 200 OK

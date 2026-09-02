@@ -100,6 +100,91 @@ async def test_admin_cannot_change_own_role(client: AsyncClient) -> None:
     assert resp.status_code == 400
 
 
+async def test_admin_can_create_invite_user_with_generated_password(
+    client: AsyncClient,
+) -> None:
+    admin = await _bootstrap_admin_tokens(client)
+    resp = await client.post(
+        "/api/v1/users/",
+        json={"name": "New Hire", "email": "newhire@example.com", "role": "Manager"},
+        headers=auth_header(admin["access_token"]),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["user"]["email"] == "newhire@example.com"
+    assert body["user"]["role"] == "Manager"
+    assert body["user"]["status"] == "active"
+    temp_password = body["temporary_password"]
+    assert temp_password and len(temp_password) >= 8
+
+    # The generated password actually logs the new user in.
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "newhire@example.com", "password": temp_password},
+    )
+    assert login_resp.status_code == 200
+
+
+async def test_admin_can_create_user_with_own_password_no_temp_returned(
+    client: AsyncClient,
+) -> None:
+    admin = await _bootstrap_admin_tokens(client)
+    resp = await client.post(
+        "/api/v1/users/",
+        json={
+            "name": "Set Password",
+            "email": "setpw@example.com",
+            "password": "a-strong-password",
+        },
+        headers=auth_header(admin["access_token"]),
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["temporary_password"] is None
+    assert resp.json()["user"]["role"] == "Team Member"  # default role
+
+
+async def test_create_user_rejects_duplicate_email(client: AsyncClient) -> None:
+    admin = await _bootstrap_admin_tokens(client)
+    await register(client, "dup@example.com")
+
+    resp = await client.post(
+        "/api/v1/users/",
+        json={"name": "Dup", "email": "dup@example.com"},
+        headers=auth_header(admin["access_token"]),
+    )
+    assert resp.status_code == 400
+
+
+async def test_create_user_forbidden_for_manager_and_team_member(
+    client: AsyncClient,
+) -> None:
+    admin = await _bootstrap_admin_tokens(client)
+    manager = await register(client, "manager@example.com")
+    await client.patch(
+        f"/api/v1/users/{manager['id']}/role",
+        json={"role": "Manager"},
+        headers=auth_header(admin["access_token"]),
+    )
+    manager_tokens = await login(client, "manager@example.com")
+
+    for tokens in (manager_tokens,):
+        resp = await client.post(
+            "/api/v1/users/",
+            json={"name": "X", "email": "x@example.com"},
+            headers=auth_header(tokens["access_token"]),
+        )
+        assert resp.status_code == 403
+
+    member = await register(client, "member2@example.com")
+    member_tokens = await login(client, "member2@example.com")
+    resp = await client.post(
+        "/api/v1/users/",
+        json={"name": "Y", "email": "y@example.com"},
+        headers=auth_header(member_tokens["access_token"]),
+    )
+    assert resp.status_code == 403
+
+
 async def test_disabled_user_cannot_authenticate(client: AsyncClient) -> None:
     admin = await _bootstrap_admin_tokens(client)
     member = await register(client, "member@example.com")

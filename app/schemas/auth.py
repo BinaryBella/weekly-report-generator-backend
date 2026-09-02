@@ -48,6 +48,26 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=1)
 
 
+class UserCreateRequest(BaseModel):
+    """Payload for ``POST /users/`` (Admin only) - directly add a team member.
+
+    Stands in for an email "invite" flow: the app has no outbound-mail
+    integration, so an Admin creates the account here and shares the
+    credentials out of band. Leave ``password`` unset to have the server
+    generate a one-time temporary password, returned once in the response.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=120, examples=["Ada Lovelace"])
+    email: EmailStr = Field(examples=["ada@example.com"])
+    role: Role = Role.TEAM_MEMBER
+    password: str | None = Field(
+        default=None, min_length=8, max_length=128,
+        description="Omit to auto-generate a temporary password.",
+    )
+
+
 class RoleUpdateRequest(BaseModel):
     """Payload for ``PATCH /users/{user_id}/role`` (Admin only)."""
 
@@ -105,6 +125,16 @@ class UserResponse(BaseModel):
             created_at=user.created_at,
             updated_at=user.updated_at,
         )
+
+
+class UserCreateResponse(BaseModel):
+    """Response for ``POST /users/`` - the new account, plus its temp password if generated."""
+
+    user: UserResponse
+    temporary_password: str | None = Field(
+        default=None,
+        description="Only present when the Admin did not supply a password.",
+    )
 
 
 class MessageResponse(BaseModel):
