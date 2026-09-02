@@ -28,16 +28,24 @@ app/
 │   ├── config.py        # env-driven Settings (pydantic-settings)
 │   └── security.py      # password hashing + JWT create/verify
 ├── models/
-│   └── user.py          # Beanie documents: User, RevokedToken
+│   ├── __init__.py      # document_models registry (bound by init_beanie)
+│   ├── user.py          # Beanie documents: User, RevokedToken
+│   └── project.py       # Beanie document: Project
 ├── schemas/
-│   └── auth.py          # request/response Pydantic models
+│   ├── auth.py          # auth / user request/response Pydantic models
+│   └── project.py       # project request/response Pydantic models
+├── repositories/
+│   └── project_repository.py  # project data-access layer
+├── services/
+│   └── project_service.py     # project business rules + domain errors
 ├── db/
 │   └── session.py       # Motor client + init_beanie lifecycle
 ├── api/
 │   ├── deps.py          # get_current_user, require_roles(...)
 │   └── v1/
 │       ├── auth.py      # /register /login /refresh /logout /me
-│       └── users.py     # /users/  /users/{id}  /users/{id}/role  /users/{id}/status
+│       ├── users.py     # /users/  /users/{id}  /users/{id}/role  /users/{id}/status
+│       └── projects.py  # /projects/  /projects/{id}  /projects/{id}/members   (GET all roles; write ops Manager+Admin)
 └── main.py              # app factory, lifespan, CORS, /health
 tests/                   # pytest suite (in-memory MongoDB)
 ```

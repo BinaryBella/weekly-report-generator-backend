@@ -12,7 +12,7 @@ from mongomock_motor import AsyncMongoMockClient
 
 from app.core.config import settings
 from app.main import create_app
-from app.models.user import __beanie_models__
+from app.models import document_models
 
 app = create_app()
 
@@ -21,7 +21,7 @@ app = create_app()
 async def _init_db() -> AsyncIterator[None]:
     """Fresh in-memory database bound to Beanie for every test."""
     client = AsyncMongoMockClient()
-    await init_beanie(database=client["test_db"], document_models=list(__beanie_models__))
+    await init_beanie(database=client["test_db"], document_models=list(document_models))
     yield
 
 

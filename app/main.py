@@ -11,11 +11,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.projects import router as projects_router
 from app.api.v1.users import router as users_router
 from app.core.config import settings
 from app.core.security import TokenError
 from app.db.session import close_db, init_db
 from app.models.user import Role, User
+from app.services.project_service import (
+    DuplicateProjectNameError,
+    InvalidMemberIdsError,
+    ProjectNotFoundError,
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -73,8 +79,39 @@ def create_app() -> FastAPI:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    @app.exception_handler(ProjectNotFoundError)
+    async def _project_not_found_handler(
+        _: Request, __: ProjectNotFoundError
+    ) -> JSONResponse:
+        """Translate an unknown project id into ``404 Not Found``."""
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "Project not found"},
+        )
+
+    @app.exception_handler(DuplicateProjectNameError)
+    async def _duplicate_project_handler(
+        _: Request, exc: DuplicateProjectNameError
+    ) -> JSONResponse:
+        """Translate a project-name collision into ``400 Bad Request``."""
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": str(exc)},
+        )
+
+    @app.exception_handler(InvalidMemberIdsError)
+    async def _invalid_member_ids_handler(
+        _: Request, exc: InvalidMemberIdsError
+    ) -> JSONResponse:
+        """Translate unknown member/user ids into ``400 Bad Request``."""
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": str(exc)},
+        )
+
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(users_router, prefix=settings.api_v1_prefix)
+    app.include_router(projects_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", tags=["health"], summary="Liveness probe")
     async def health() -> dict[str, str]:
