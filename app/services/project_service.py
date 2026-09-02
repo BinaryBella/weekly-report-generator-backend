@@ -13,6 +13,7 @@ from pymongo.errors import DuplicateKeyError
 from app.models.project import Project
 from app.models.user import User
 from app.repositories.project_repository import ProjectRepository
+from app.repositories.report_repository import ReportRepository
 from app.schemas.project import ProjectCreateRequest, ProjectUpdateRequest
 
 
@@ -54,8 +55,13 @@ class DeleteMode:
 class ProjectService:
     """Coordinates validation, uniqueness and delete semantics for projects."""
 
-    def __init__(self, repository: ProjectRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: ProjectRepository | None = None,
+        report_repository: ReportRepository | None = None,
+    ) -> None:
         self._repo = repository or ProjectRepository()
+        self._report_repo = report_repository or ReportRepository()
 
     async def list_projects(self, *, active_only: bool = False) -> list[Project]:
         """Return all projects, or only active ones when *active_only* is set."""
@@ -172,12 +178,5 @@ class ProjectService:
         return None, DeleteMode.HARD
 
     async def _has_linked_reports(self, project: Project) -> bool:
-        """Whether any report references *project*.
-
-        Report entities arrive in a later requirement. Until a report repository
-        exists there is nothing pointing at a project, so this is always
-        ``False`` and deletes are hard deletes. Wire the report lookup in here
-        when that collection lands and the soft-delete branch activates with no
-        other changes.
-        """
-        return False
+        """Whether any report references *project* (soft-delete when it does)."""
+        return await self._report_repo.exists_for_project(str(project.id))
