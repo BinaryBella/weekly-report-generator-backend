@@ -1,0 +1,42 @@
+[project]
+name = "weekly-report-generator-backend"
+version = "0.1.0"
+description = "Weekly Report Generator - Requirement 1: User Authentication & Roles"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "beanie>=1.26.0,<2.0.0",
+    "motor>=3.5.0",
+    "dnspython>=2.6.0",
+    "certifi>=2024.2.2",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.5.0",
+    "email-validator>=2.2.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.2.0,<5.0.0",
+    "pyjwt>=2.9.0",
+    "python-multipart>=0.0.12",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "mongomock-motor>=0.0.34",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    # Third-party noise from beanie/lazy-model and the mongomock test double.
+    "ignore::DeprecationWarning:lazy_model.*",
+    "ignore::pydantic.PydanticDeprecatedSince211:lazy_model.*",
+    "ignore:datetime.datetime.utcnow:DeprecationWarning:mongomock.*",
+]
+
+[tool.uv]
+package = false
