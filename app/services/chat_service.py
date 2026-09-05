@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date
 
 from openai import AsyncOpenAI, OpenAIError
 
@@ -100,6 +100,12 @@ def _system_prompt() -> str:
     return SYSTEM_PROMPT_TEMPLATE.format(today=date.today().isoformat())
 
 
+def _auto_title(first_message: str) -> str:
+    """Derive a short session title from a session's first user message."""
+    collapsed = " ".join(first_message.split())
+    return collapsed[:60] + ("…" if len(collapsed) > 60 else "")
+
+
 def _safe_json_loads(raw: str | None) -> dict:
     if not raw:
         return {}
@@ -142,6 +148,16 @@ class ChatService:
         session = await self._load_owned_session(user, session_id)
         return await self._repo.list_messages(str(session.id))
 
+    async def delete_session(self, user: User, session_id: str) -> None:
+        """Delete a session and its messages.
+
+        Raises:
+            ChatSessionNotFoundError: if the session id is unknown.
+            ChatAccessDeniedError: if the caller does not own the session.
+        """
+        session = await self._load_owned_session(user, session_id)
+        await self._repo.delete_session(session)
+
     # -- Conversational Q&A ---------------------------------------------------
     async def send_message(
         self, user: User, session_id: str, content: str
@@ -170,6 +186,8 @@ class ChatService:
 
         reply_text = await self._run_tool_loop(client, messages)
 
+        if not history and session.title == "New chat":
+            session.title = _auto_title(content)
         session.touch()
         await self._repo.save_session(session)
         return await self._repo.add_message(
@@ -244,9 +262,11 @@ class ChatService:
         """
         client = self._get_client()
 
-        project_id = (
-            await resolve_project_id(project_name_or_id) if project_name_or_id else None
-        )
+        project_id = None
+        if project_name_or_id:
+            project_id = await resolve_project_id(project_name_or_id)
+            if project_id is None:
+                return f"No project matching '{project_name_or_id}' was found."
 
         reports = await self._reports.team_activity_details(
             project_id=project_id, date_from=date_from, date_to=date_to
