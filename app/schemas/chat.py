@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 if TYPE_CHECKING:
     from app.models.chat import ChatMessage, ChatSession
@@ -84,6 +84,12 @@ class TeamSummaryRequest(BaseModel):
     project_name_or_id: str | None = Field(default=None, max_length=120)
     date_from: date
     date_to: date
+
+    @model_validator(mode="after")
+    def _check_date_range(self) -> "TeamSummaryRequest":
+        if self.date_from > self.date_to:
+            raise ValueError("date_from must be on or before date_to")
+        return self
 
 
 class TeamSummaryResponse(BaseModel):

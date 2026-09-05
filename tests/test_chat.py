@@ -337,3 +337,112 @@ async def test_generate_summary_from_reports(
     )
     assert resp.status_code == 200, resp.text
     assert "Highlights" in resp.json()["summary"]
+
+
+async def test_generate_summary_rejects_inverted_date_range(
+    client: AsyncClient, _clear_chat_override: None
+) -> None:
+    manager = await _manager_tokens(client)
+    _use_fake_client([])  # must never reach the model - fails validation first
+
+    resp = await client.post(
+        "/api/v1/chat/summary",
+        json={"date_from": "2026-08-30", "date_to": "2026-08-24"},
+        headers=auth_header(manager["access_token"]),
+    )
+    assert resp.status_code == 422
+
+
+async def test_generate_summary_unmatched_project_does_not_leak_other_projects(
+    client: AsyncClient, _clear_chat_override: None
+) -> None:
+    """An unmatched project name must not silently fall back to "all projects"."""
+    manager = await _manager_tokens(client)
+    project = await _create_project(client, manager["access_token"])
+    member = await _member_tokens(client)
+    await _submit_report(client, member["access_token"], project["id"])
+
+    _use_fake_client([])  # the model must never be called for an unmatched project
+
+    resp = await client.post(
+        "/api/v1/chat/summary",
+        json={
+            "project_name_or_id": "Nonexistent Team",
+            "date_from": "2026-08-24",
+            "date_to": "2026-08-30",
+        },
+        headers=auth_header(manager["access_token"]),
+    )
+    assert resp.status_code == 200, resp.text
+    assert "No project matching" in resp.json()["summary"]
+
+
+# ---------------------------------------------------------------------------
+# Session lifecycle: auto-title, delete
+# ---------------------------------------------------------------------------
+async def test_session_gets_auto_title_from_first_message(
+    client: AsyncClient, _clear_chat_override: None
+) -> None:
+    manager = await _manager_tokens(client)
+    _use_fake_client([text_response("The team submitted 3 reports this week.")])
+
+    session = await _create_session(client, manager["access_token"])
+    assert session["title"] == "New chat"
+
+    await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": "How many reports came in this week?"},
+        headers=auth_header(manager["access_token"]),
+    )
+
+    listed = await client.get(
+        "/api/v1/chat/sessions", headers=auth_header(manager["access_token"])
+    )
+    assert listed.status_code == 200
+    titles = [s["title"] for s in listed.json()["items"]]
+    assert titles == ["How many reports came in this week?"]
+
+
+async def test_delete_session_removes_it_and_its_messages(
+    client: AsyncClient, _clear_chat_override: None
+) -> None:
+    manager = await _manager_tokens(client)
+    _use_fake_client([text_response("Sure, here's what happened.")])
+
+    session = await _create_session(client, manager["access_token"])
+    await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": "Anything urgent?"},
+        headers=auth_header(manager["access_token"]),
+    )
+
+    resp = await client.delete(
+        f"/api/v1/chat/sessions/{session['id']}",
+        headers=auth_header(manager["access_token"]),
+    )
+    assert resp.status_code == 204
+
+    listed = await client.get(
+        "/api/v1/chat/sessions", headers=auth_header(manager["access_token"])
+    )
+    assert listed.json()["items"] == []
+
+    missing = await client.get(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        headers=auth_header(manager["access_token"]),
+    )
+    assert missing.status_code == 404
+
+
+async def test_cannot_delete_another_managers_session(
+    client: AsyncClient, _clear_chat_override: None
+) -> None:
+    manager_a = await _manager_tokens(client)  # registers + logs in "boss" too
+    session = await _create_session(client, manager_a["access_token"])
+
+    admin = await login(client, "boss@example.com")
+    resp = await client.delete(
+        f"/api/v1/chat/sessions/{session['id']}",
+        headers=auth_header(admin["access_token"]),
+    )
+    assert resp.status_code == 403

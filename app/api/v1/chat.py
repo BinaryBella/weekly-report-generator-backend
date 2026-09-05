@@ -78,6 +78,17 @@ async def list_sessions(user: ManagerOnly, service: ChatSvc) -> ChatSessionListR
     )
 
 
+@router.delete(
+    "/sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a chat session and its messages (Manager only, owner only)",
+)
+async def delete_session(
+    session_id: str, user: ManagerOnly, service: ChatSvc
+) -> None:
+    await service.delete_session(user, session_id)
+
+
 @router.get(
     "/sessions/{session_id}/messages",
     response_model=ChatMessageListResponse,

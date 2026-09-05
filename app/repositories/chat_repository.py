@@ -30,6 +30,11 @@ class ChatRepository:
         except (InvalidId, ValueError):
             return None
 
+    async def delete_session(self, session: ChatSession) -> None:
+        """Remove a session and every message in it."""
+        await ChatMessage.find(ChatMessage.session_id == str(session.id)).delete()
+        await session.delete()
+
     async def list_sessions(self, user_id: str) -> list[ChatSession]:
         """Return a user's chat sessions, most recently active first."""
         return (
