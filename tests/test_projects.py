@@ -84,7 +84,7 @@ async def test_active_only_filter(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Write access - Manager / Admin only
+# Write access - Manager only
 # ---------------------------------------------------------------------------
 async def test_manager_can_create_project(client: AsyncClient) -> None:
     manager = await _manager_tokens(client)

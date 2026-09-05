@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.chat import router as chat_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.users import router as users_router
@@ -18,6 +19,12 @@ from app.core.config import settings
 from app.core.security import TokenError
 from app.db.session import close_db, init_db
 from app.models.user import Role, User
+from app.services.chat_service import (
+    ChatAccessDeniedError,
+    ChatDisabledError,
+    ChatProviderError,
+    ChatSessionNotFoundError,
+)
 from app.services.project_service import (
     DuplicateProjectNameError,
     InvalidMemberIdsError,
@@ -36,26 +43,43 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-async def ensure_bootstrap_admins() -> None:
-    """Promote any already-registered users whose email is a bootstrap admin.
+async def migrate_legacy_admin_role() -> None:
+    """Fold the retired ``Admin`` role into ``Manager``.
+
+    The system now has only two roles (Team Member, Manager). Any user still
+    stored with ``role: "Admin"`` from an earlier version is rewritten with a
+    raw update, since that value no longer parses into :class:`Role`.
+    """
+    result = await User.get_motor_collection().update_many(
+        {"role": "Admin"}, {"$set": {"role": Role.MANAGER.value}}
+    )
+    if result.modified_count:
+        logger.info(
+            "Migrated %d legacy Admin user(s) to Manager", result.modified_count
+        )
+
+
+async def ensure_bootstrap_managers() -> None:
+    """Promote any already-registered user whose email seeds the first Manager.
 
     Registration handles the common case; this pass covers users who signed up
     before their address was added to ``BOOTSTRAP_ADMIN_EMAILS``.
     """
     for email in settings.bootstrap_admin_emails:
         user = await User.find_one(User.email == email)
-        if user is not None and user.role is not Role.ADMIN:
-            user.role = Role.ADMIN
+        if user is not None and user.role is not Role.MANAGER:
+            user.role = Role.MANAGER
             user.touch()
             await user.save()
-            logger.info("Promoted bootstrap admin: %s", email)
+            logger.info("Promoted bootstrap Manager: %s", email)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Open the database on startup, close it on shutdown."""
     await init_db()
-    await ensure_bootstrap_admins()
+    await migrate_legacy_admin_role()
+    await ensure_bootstrap_managers()
     try:
         yield
     finally:
@@ -178,10 +202,49 @@ def create_app() -> FastAPI:
             content={"detail": "Team member not found"},
         )
 
+    @app.exception_handler(ChatDisabledError)
+    async def _chat_disabled_handler(_: Request, exc: ChatDisabledError) -> JSONResponse:
+        """Translate a missing OpenAI configuration into ``503 Service Unavailable``."""
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": str(exc)},
+        )
+
+    @app.exception_handler(ChatSessionNotFoundError)
+    async def _chat_session_not_found_handler(
+        _: Request, __: ChatSessionNotFoundError
+    ) -> JSONResponse:
+        """Translate an unknown chat session id into ``404 Not Found``."""
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "Chat session not found"},
+        )
+
+    @app.exception_handler(ChatAccessDeniedError)
+    async def _chat_access_denied_handler(
+        _: Request, exc: ChatAccessDeniedError
+    ) -> JSONResponse:
+        """Translate access to another user's chat session into ``403 Forbidden``."""
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": str(exc)},
+        )
+
+    @app.exception_handler(ChatProviderError)
+    async def _chat_provider_error_handler(
+        _: Request, exc: ChatProviderError
+    ) -> JSONResponse:
+        """Translate an upstream OpenAI failure into ``502 Bad Gateway``."""
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": f"AI chat assistant is temporarily unavailable: {exc}"},
+        )
+
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(users_router, prefix=settings.api_v1_prefix)
     app.include_router(projects_router, prefix=settings.api_v1_prefix)
     app.include_router(reports_router, prefix=settings.api_v1_prefix)
+    app.include_router(chat_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", tags=["health"], summary="Liveness probe")
     async def health() -> dict[str, str]:

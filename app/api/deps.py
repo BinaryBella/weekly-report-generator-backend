@@ -85,7 +85,7 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
     """Build a dependency that permits only users holding one of *roles*.
 
     Example:
-        ``Depends(require_roles(Role.MANAGER, Role.ADMIN))``
+        ``Depends(require_roles(Role.MANAGER))``
 
     Raises:
         HTTPException: ``403`` if the current user's role is not in *roles*.

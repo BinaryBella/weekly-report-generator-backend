@@ -14,9 +14,9 @@ async def test_register_defaults_to_team_member(client: AsyncClient) -> None:
     assert "hashed_password" not in body
 
 
-async def test_register_bootstrap_email_becomes_admin(client: AsyncClient) -> None:
+async def test_register_bootstrap_email_becomes_manager(client: AsyncClient) -> None:
     body = await register(client, "boss@example.com")
-    assert body["role"] == "Admin"
+    assert body["role"] == "Manager"
 
 
 async def test_register_duplicate_email_returns_400(client: AsyncClient) -> None:

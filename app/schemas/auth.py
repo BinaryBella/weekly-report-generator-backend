@@ -49,12 +49,12 @@ class RefreshRequest(BaseModel):
 
 
 class UserCreateRequest(BaseModel):
-    """Payload for ``POST /users/`` (Admin only) - directly add a team member.
+    """Payload for ``POST /users/`` (Manager only) - invite a team member.
 
-    Stands in for an email "invite" flow: the app has no outbound-mail
-    integration, so an Admin creates the account here and shares the
-    credentials out of band. Leave ``password`` unset to have the server
-    generate a one-time temporary password, returned once in the response.
+    The server emails the new account's sign-in credentials when SMTP is
+    configured (see ``UserCreateResponse.email_sent``); otherwise the Manager
+    shares them out of band using the temporary password returned once in the
+    response. Leave ``password`` unset to have the server generate one.
     """
 
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -69,13 +69,13 @@ class UserCreateRequest(BaseModel):
 
 
 class RoleUpdateRequest(BaseModel):
-    """Payload for ``PATCH /users/{user_id}/role`` (Admin only)."""
+    """Payload for ``PATCH /users/{user_id}/role`` (Manager only)."""
 
     role: Role
 
 
 class StatusUpdateRequest(BaseModel):
-    """Payload for ``PATCH /users/{user_id}/status`` (Manager/Admin only)."""
+    """Payload for ``PATCH /users/{user_id}/status`` (Manager only)."""
 
     status: UserStatus
 
@@ -133,8 +133,30 @@ class UserCreateResponse(BaseModel):
     user: UserResponse
     temporary_password: str | None = Field(
         default=None,
-        description="Only present when the Admin did not supply a password.",
+        description="Only present when the Manager did not supply a password.",
     )
+    email_sent: bool = Field(
+        default=False,
+        description=(
+            "Whether an email with the sign-in credentials was sent. False when "
+            "SMTP isn't configured or sending failed - the Manager should share "
+            "`temporary_password` out of band in that case."
+        ),
+    )
+
+
+class UserDeleteResponse(BaseModel):
+    """Response for ``DELETE /users/{id}`` - "remove" a team member.
+
+    Mirrors ``ProjectDeleteResponse``: a user with no history (no reports, not
+    a member of any project) is hard-deleted outright; otherwise the account
+    is disabled so past reports/projects stay intact, and the caller is told
+    which happened.
+    """
+
+    detail: str
+    soft_deleted: bool
+    user: UserResponse | None = None
 
 
 class MessageResponse(BaseModel):
