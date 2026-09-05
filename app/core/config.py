@@ -47,6 +47,26 @@ class Settings(BaseSettings):
     # -- Bootstrap ---------------------------------------------------------------
     bootstrap_admin_emails: Annotated[list[str], NoDecode] = []
 
+    # -- Email / SMTP (invite emails) --------------------------------------------
+    # Left unset in dev: invite emails are then skipped and the Manager falls
+    # back to sharing the temporary password shown in the UI.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "Weekly Report Generator"
+    smtp_use_tls: bool = True
+    # Used to build the sign-in link in invite emails.
+    frontend_base_url: str = "http://localhost:3000"
+
+    # -- AI chat assistant (OpenAI) -----------------------------------------
+    # Left unset in dev: the /chat endpoints then respond 503 instead of
+    # calling out to OpenAI, so the rest of the app works without a key.
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    openai_max_output_tokens: int = 700
+
     @field_validator("cors_allow_origins", "bootstrap_admin_emails", mode="before")
     @classmethod
     def _split_csv(cls, value: object) -> object:
@@ -69,8 +89,18 @@ class Settings(BaseSettings):
         return self.access_token_expire_minutes * 60
 
     def is_bootstrap_admin(self, email: str) -> bool:
-        """Return ``True`` when *email* should be granted the Admin role on signup."""
+        """Return ``True`` when *email* should be granted the Manager role on signup."""
         return email.lower() in self.bootstrap_admin_emails
+
+    @property
+    def email_enabled(self) -> bool:
+        """Whether enough SMTP settings are present to attempt sending mail."""
+        return bool(self.smtp_host and self.smtp_from_email)
+
+    @property
+    def ai_chat_enabled(self) -> bool:
+        """Whether an OpenAI key is configured, i.e. the chat assistant can run."""
+        return bool(self.openai_api_key)
 
 
 @lru_cache(maxsize=1)

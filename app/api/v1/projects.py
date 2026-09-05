@@ -1,12 +1,12 @@
 """Project (a.k.a. category) endpoints with role-based access control.
 
 Access summary:
-    * ``GET  /projects/``       - any authenticated user (Team Member/Manager/Admin).
+    * ``GET  /projects/``       - any authenticated user (Team Member or Manager).
     * ``GET  /projects/{id}``   - any authenticated user.
-    * ``POST /projects/``       - Manager or Admin only.
-    * ``PUT  /projects/{id}``   - Manager or Admin only.
-    * ``PUT  /projects/{id}/members`` - Manager or Admin only.
-    * ``DELETE /projects/{id}`` - Manager or Admin only.
+    * ``POST /projects/``       - Manager only.
+    * ``PUT  /projects/{id}``   - Manager only.
+    * ``PUT  /projects/{id}/members`` - Manager only.
+    * ``DELETE /projects/{id}`` - Manager only.
 
 The controller stays thin: it delegates to :class:`~app.services.project_service.ProjectService`
 and lets the domain errors raised there be turned into ``404`` / ``400`` responses
@@ -32,9 +32,9 @@ from app.services.project_service import DeleteMode, ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-# Write operations are restricted to Manager / Admin; the dependency raises 403
+# Write operations are restricted to Manager; the dependency raises 403
 # for a Team Member before the handler body runs.
-ManagerOrAdmin = Annotated[User, Depends(require_roles(Role.MANAGER, Role.ADMIN))]
+ManagerOnly = Annotated[User, Depends(require_roles(Role.MANAGER))]
 
 
 def get_project_service() -> ProjectService:
@@ -85,11 +85,11 @@ async def get_project(
     "/",
     response_model=ProjectResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a project (Manager/Admin)",
+    summary="Create a project (Manager)",
 )
 async def create_project(
     payload: ProjectCreateRequest,
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ProjectSvc,
 ) -> ProjectResponse:
     """Create a new project.
@@ -105,12 +105,12 @@ async def create_project(
 @router.put(
     "/{project_id}",
     response_model=ProjectResponse,
-    summary="Update a project (Manager/Admin)",
+    summary="Update a project (Manager)",
 )
 async def update_project(
     project_id: str,
     payload: ProjectUpdateRequest,
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ProjectSvc,
 ) -> ProjectResponse:
     """Update an existing project. Only the fields sent in the body are changed.
@@ -126,12 +126,12 @@ async def update_project(
 @router.put(
     "/{project_id}/members",
     response_model=ProjectResponse,
-    summary="Assign team members to a project (Manager/Admin)",
+    summary="Assign team members to a project (Manager)",
 )
 async def assign_project_members(
     project_id: str,
     payload: ProjectMembersUpdateRequest,
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ProjectSvc,
 ) -> ProjectResponse:
     """Replace the full set of team members assigned to a project.
@@ -147,11 +147,11 @@ async def assign_project_members(
 @router.delete(
     "/{project_id}",
     response_model=ProjectDeleteResponse,
-    summary="Delete a project (Manager/Admin)",
+    summary="Delete a project (Manager)",
 )
 async def delete_project(
     project_id: str,
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ProjectSvc,
 ) -> ProjectDeleteResponse:
     """Delete a project.

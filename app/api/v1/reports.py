@@ -3,13 +3,13 @@
 Access summary:
     * ``POST /reports/``         - any authenticated user; creates a DRAFT owned by
                                    the caller.
-    * ``GET  /reports/``         - Manager / Admin only; every team member's
+    * ``GET  /reports/``         - Manager only; every team member's
                                    reports once they leave DRAFT (the review
                                    dashboard), paginated and filterable by
                                    status / user / project.
     * ``GET  /reports/me``       - the caller's own report history, newest week
                                    first (paginated, optional status filter).
-    * ``GET  /reports/{id}``     - the owner always; a Manager / Admin only once
+    * ``GET  /reports/{id}``     - the owner always; a Manager only once
                                    the report has been submitted (a DRAFT is
                                    private to its author -> ``403`` otherwise).
     * ``GET  /reports/{id}/versions`` - past versions of that week's report, same
@@ -18,18 +18,18 @@ Access summary:
                                    DRAFT or NEEDS_CORRECTION (else ``400``).
     * ``POST /reports/{id}/submit``          - the owner; DRAFT / NEEDS_CORRECTION
                                                -> SUBMITTED.
-    * ``POST /reports/{id}/approve``         - Manager / Admin; SUBMITTED ->
+    * ``POST /reports/{id}/approve``         - Manager; SUBMITTED ->
                                                APPROVED.
-    * ``POST /reports/{id}/request-changes`` - Manager / Admin; SUBMITTED ->
+    * ``POST /reports/{id}/request-changes`` - Manager; SUBMITTED ->
                                                NEEDS_CORRECTION, with one comment.
 
-Team dashboard (Section 4) - Manager / Admin only:
+Team dashboard (Section 4) - Manager only:
     * ``GET /reports/dashboard/status``          - per-member submission status for
                                                    a selected week (incl. NOT_STARTED).
     * ``GET /reports/dashboard/section/{name}``  - one report section across the
                                                    whole team for a selected week.
 
-Insights dashboard (Section 6) - Manager / Admin only:
+Insights dashboard (Section 6) - Manager only:
     * ``GET /reports/dashboard/summary``                       - headline metrics.
     * ``GET /reports/dashboard/charts/tasks-completed-trend``  - completed-tasks
                                                                  trend over time.
@@ -92,7 +92,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 # Approve / request-changes are manager actions; the dependency raises 403 for a
 # Team Member before the handler body runs.
-ManagerOrAdmin = Annotated[User, Depends(require_roles(Role.MANAGER, Role.ADMIN))]
+ManagerOnly = Annotated[User, Depends(require_roles(Role.MANAGER))]
 
 
 def get_report_service() -> ReportService:
@@ -127,10 +127,10 @@ async def create_report(
 @router.get(
     "/",
     response_model=ReportListResponse,
-    summary="List every team member's reports (Manager/Admin review dashboard)",
+    summary="List every team member's reports (Manager review dashboard)",
 )
 async def list_all_reports(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     status_filter: Annotated[
         ReportStatus | None,
@@ -189,10 +189,10 @@ async def list_all_reports(
 @router.get(
     "/dashboard/status",
     response_model=TeamStatusResponse,
-    summary="Track each team member's submission status for a week (Manager/Admin)",
+    summary="Track each team member's submission status for a week (Manager)",
 )
 async def team_status_overview(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     week_start_date: Annotated[
         date, Query(description="The selected week (exact week-start date)")
@@ -234,11 +234,11 @@ async def team_status_overview(
 @router.get(
     "/dashboard/section/{section}",
     response_model=TeamSectionResponse,
-    summary="View one report section across the whole team for a week (Manager/Admin)",
+    summary="View one report section across the whole team for a week (Manager)",
 )
 async def team_section_overview(
     section: ReportSection,
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     week_start_date: Annotated[
         date, Query(description="The selected week (exact week-start date)")
@@ -285,15 +285,15 @@ async def team_section_overview(
 
 
 # ---------------------------------------------------------------------------
-# Section 6 - Dashboard & visual insights (Manager/Admin only)
+# Section 6 - Dashboard & visual insights (Manager only)
 # ---------------------------------------------------------------------------
 @router.get(
     "/dashboard/summary",
     response_model=DashboardSummaryResponse,
-    summary="Headline metrics for the selected week (Manager/Admin)",
+    summary="Headline metrics for the selected week (Manager)",
 )
 async def dashboard_summary(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     week_start_date: Annotated[
         date, Query(description="The selected week (exact week-start date)")
@@ -321,10 +321,10 @@ async def dashboard_summary(
 @router.get(
     "/dashboard/charts/tasks-completed-trend",
     response_model=TasksCompletedTrendResponse,
-    summary="Completed-tasks trend over time (Manager/Admin)",
+    summary="Completed-tasks trend over time (Manager)",
 )
 async def tasks_completed_trend(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     weeks: Annotated[int, Query(ge=1, le=52, description="Trailing weeks to include")] = 8,
     group_by: Annotated[
@@ -353,10 +353,10 @@ async def tasks_completed_trend(
 @router.get(
     "/dashboard/charts/status-by-member",
     response_model=StatusByMemberResponse,
-    summary="Report submission / approval status by team member (Manager/Admin)",
+    summary="Report submission / approval status by team member (Manager)",
 )
 async def status_by_member(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     week_start_date: Annotated[
         date | None, Query(description="A single selected week (enables NOT_STARTED)")
@@ -383,10 +383,10 @@ async def status_by_member(
 @router.get(
     "/dashboard/charts/workload-by-project",
     response_model=WorkloadByProjectResponse,
-    summary="Workload / task distribution by project (Manager/Admin)",
+    summary="Workload / task distribution by project (Manager)",
 )
 async def workload_by_project(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     week_start_date: Annotated[date | None, Query()] = None,
     date_from: Annotated[date | None, Query()] = None,
@@ -406,10 +406,10 @@ async def workload_by_project(
 @router.get(
     "/dashboard/charts/hours-by-type",
     response_model=HoursByTypeResponse,
-    summary="Time spent by task type, team-wide (Manager/Admin)",
+    summary="Time spent by task type, team-wide (Manager)",
 )
 async def hours_by_type(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     week_start_date: Annotated[date | None, Query()] = None,
     date_from: Annotated[date | None, Query()] = None,
@@ -433,10 +433,10 @@ async def hours_by_type(
 @router.get(
     "/dashboard/activity",
     response_model=ActivityFeedResponse,
-    summary="Recent reports & review actions feed (Manager/Admin)",
+    summary="Recent reports & review actions feed (Manager)",
 )
 async def activity_feed(
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     project_id: Annotated[str | None, Query()] = None,
@@ -453,11 +453,11 @@ async def activity_feed(
 @router.get(
     "/dashboard/member/{user_id}",
     response_model=MemberProfileResponse,
-    summary="Team member profile: identity, basic stats & history (Manager/Admin)",
+    summary="Team member profile: identity, basic stats & history (Manager)",
 )
 async def member_profile(
     user_id: str,
-    _: ManagerOrAdmin,
+    _: ManagerOnly,
     service: ReportSvc,
     limit: Annotated[
         int, Query(ge=1, le=50, description="How many recent reports to include")
@@ -514,7 +514,7 @@ async def list_my_reports(
 @router.get(
     "/{report_id}",
     response_model=ReportResponse,
-    summary="Get one report in full (owner; Manager/Admin once submitted)",
+    summary="Get one report in full (owner; Manager once submitted)",
 )
 async def get_report(
     report_id: str,
@@ -526,7 +526,7 @@ async def get_report(
 
     Raises:
         HTTPException: ``403`` if the caller is neither the owner nor (for a
-            non-DRAFT report) a Manager / Admin; ``404`` if the id does not exist.
+            non-DRAFT report) a Manager; ``404`` if the id does not exist.
     """
     report = await service.get_report(current_user, report_id)
     return ReportResponse.from_report(report)
@@ -535,7 +535,7 @@ async def get_report(
 @router.get(
     "/{report_id}/versions",
     response_model=list[ReportVersionResponse],
-    summary="List a report's past versions (owner or Manager/Admin)",
+    summary="List a report's past versions (owner or Manager)",
 )
 async def list_report_versions(
     report_id: str,
@@ -605,11 +605,11 @@ async def submit_report(
 @router.post(
     "/{report_id}/approve",
     response_model=ReportResponse,
-    summary="Approve a submitted report (Manager/Admin)",
+    summary="Approve a submitted report (Manager)",
 )
 async def approve_report(
     report_id: str,
-    current_user: ManagerOrAdmin,
+    current_user: ManagerOnly,
     service: ReportSvc,
 ) -> ReportResponse:
     """Move a SUBMITTED report to APPROVED; no further edits are expected.
@@ -625,12 +625,12 @@ async def approve_report(
 @router.post(
     "/{report_id}/request-changes",
     response_model=ReportResponse,
-    summary="Send a submitted report back for correction (Manager/Admin)",
+    summary="Send a submitted report back for correction (Manager)",
 )
 async def request_changes(
     report_id: str,
     payload: RequestChangesRequest,
-    current_user: ManagerOrAdmin,
+    current_user: ManagerOnly,
     service: ReportSvc,
 ) -> ReportResponse:
     """Move a SUBMITTED report to NEEDS_CORRECTION with one general comment.

@@ -17,11 +17,14 @@ def _utcnow() -> datetime:
 
 
 class Role(str, Enum):
-    """Application roles, ordered from least to most privileged."""
+    """Application roles, ordered from least to most privileged.
+
+    Only two roles exist. ``MANAGER`` is the fully privileged / "admin" role:
+    it reviews reports, manages projects, and manages users and their roles.
+    """
 
     TEAM_MEMBER = "Team Member"
     MANAGER = "Manager"
-    ADMIN = "Admin"
 
 
 class UserStatus(str, Enum):

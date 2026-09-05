@@ -1,8 +1,84 @@
-INFO:     Started server process [16020]
+INFO:     Started server process [13920]
 INFO:     Waiting for application startup.
-INFO:app.db.session:Connected to MongoDB database 'weekly_report'
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8010 (Press CTRL+C to quit)
-INFO:     127.0.0.1:23943 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53022 - "GET /health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54954 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:app.db.session:Closed MongoDB connection
+ERROR:    Traceback (most recent call last):
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\app\db\session.py", line 58, in init_db
+    await _client.admin.command("ping")
+  File "C:\Program Files\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\database.py", line 953, in command
+    return self._client._retryable_read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2076, in _retryable_read
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2038, in _retry_internal
+    ).run()
+      ^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2811, in run
+    res = self._read() if self._is_read else self._write()
+          ^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 3027, in _read
+    self._server = self._get_server()
+                   ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2975, in _get_server
+    return self._client._select_server(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 1851, in _select_server
+    server = topology.select_server(
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 428, in select_server
+    server = self._select_server(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 402, in _select_server
+    servers = self.select_servers(
+              ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 298, in select_servers
+    server_descriptions = self._select_servers_loop(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 359, in _select_servers_loop
+    raise ServerSelectionTimeoutError(
+pymongo.errors.ServerSelectionTimeoutError: No replica set members found yet, Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a9978ecbcdd2a6e1deda21e, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-z3fksez-shard-00-00.bizh6cc.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-z3fksez-shard-00-01.bizh6cc.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-z3fksez-shard-00-02.bizh6cc.mongodb.net', 27017) server_type: Unknown, rtt: None>]>
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\starlette\routing.py", line 648, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\fastapi\routing.py", line 240, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\fastapi\routing.py", line 240, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\fastapi\routing.py", line 240, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\.venv\Lib\site-packages\fastapi\routing.py", line 240, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "C:\Program Files\Python312\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\app\main.py", line 57, in lifespan
+    await init_db()
+  File "C:\Users\chath\OneDrive\Desktop\weekly-report generator\weekly-report generator-backend\app\db\session.py", line 61, in init_db
+    raise RuntimeError(
+RuntimeError: Cannot reach MongoDB at 'mongodb://chathushikavindya09_db_user:***@ac-z3fksez-shard-00-00.bizh6cc.mongodb.net:27017,ac-z3fksez-shard-00-01.bizh6cc.mongodb.net:27017,ac-z3fksez-shard-00-02.bizh6cc.mongodb.net:27017/?ssl=true&replicaSet=atlas-d7kcw2-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0'. Check MONGODB_URI, that your IP is on the Atlas access list, and that the credentials are correct. Driver error: No replica set members found yet, Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a9978ecbcdd2a6e1deda21e, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-z3fksez-shard-00-00.bizh6cc.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-z3fksez-shard-00-01.bizh6cc.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('ac-z3fksez-shard-00-02.bizh6cc.mongodb.net', 27017) server_type: Unknown, rtt: None>]>
+
+ERROR:    Application startup failed. Exiting.

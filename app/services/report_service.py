@@ -234,7 +234,7 @@ class ReportService:
     async def approve_report(self, current_user: User, report_id: str) -> Report:
         """Mark a submitted report as approved; no further edits are expected.
 
-        The caller must be a Manager / Admin (enforced by the route). Only a
+        The caller must be a Manager (enforced by the route). Only a
         ``SUBMITTED`` report can be approved.
 
         Raises:
@@ -262,7 +262,7 @@ class ReportService:
         resubmits, appends *comment* to the review history, and moves the report
         to ``NEEDS_CORRECTION`` (editable again by its owner).
 
-        The caller must be a Manager / Admin (enforced by the route).
+        The caller must be a Manager (enforced by the route).
 
         Raises:
             ReportNotFoundError: if the id is unknown.
@@ -293,7 +293,7 @@ class ReportService:
     async def get_report(self, current_user: User, report_id: str) -> Report:
         """Return one report in full.
 
-        Access: the owning team member always; a Manager / Admin only once the
+        Access: the owning team member always; a Manager only once the
         report has left ``DRAFT`` (a draft is "only visible to them" until it is
         submitted for review).
 
@@ -346,7 +346,7 @@ class ReportService:
     ) -> tuple[list[Report], int]:
         """Return one page of every team member's reports (manager dashboard).
 
-        Access is restricted to Manager / Admin at the route; this method assumes
+        Access is restricted to Manager at the route; this method assumes
         the caller has already been authorised. Private drafts are never
         included - a report only reaches the dashboard once it is submitted.
 
@@ -764,6 +764,62 @@ class ReportService:
                 names[pid] = project.name
         return names
 
+    # -- AI chat assistant (Good to Have) ------------------------------------
+    async def team_activity_details(
+        self,
+        *,
+        project_id: str | None = None,
+        user_id: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int = 60,
+    ) -> list[dict]:
+        """Narrative report content for the AI chat assistant to reason over.
+
+        Returns each report's tasks/blockers/achievements as plain JSON-ready
+        dicts, newest week first, capped at *limit* reports so a broad query
+        can't blow up the prompt sent to the model. Uses the same filtering as
+        the rest of the manager dashboard - a private DRAFT is never included.
+        """
+        reports = await self._repo.fetch(
+            project_id=project_id,
+            user_id=user_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        reports = reports[:limit]
+        names = await self._names_for({r.user_id for r in reports})
+        project_names = await self._project_names({r.project_id for r in reports})
+
+        return [
+            {
+                "author_name": names.get(r.user_id, r.user_id),
+                "project_name": project_names.get(r.project_id, r.project_id),
+                "week_start_date": r.week_start_date.isoformat(),
+                "week_end_date": r.week_end_date.isoformat(),
+                "status": r.status.value,
+                "tasks_completed": [
+                    {
+                        "task_name": t.task_name,
+                        "status": t.status.value,
+                        "output_deliverable": t.output_deliverable,
+                        "time_spent_hours": t.time_spent_hours,
+                    }
+                    for t in r.tasks_completed
+                ],
+                "tasks_planned_next_week": r.tasks_planned_next_week,
+                "blockers": [
+                    {"text": b.text, "is_key_issue": b.is_key_issue}
+                    for b in r.blockers
+                ],
+                "achievements": [
+                    {"text": a.text, "is_key_achievement": a.is_key_achievement}
+                    for a in r.achievements
+                ],
+            }
+            for r in reports
+        ]
+
     # -- Team member profile (manager view) --------------------------------
     async def member_profile(self, user_id: str, *, limit: int = 5) -> dict:
         """Identity + basic stats + recent history for one team member.
@@ -835,10 +891,10 @@ class ReportService:
     def _may_view(user: User, report: Report) -> bool:
         if report.user_id == str(user.id):
             return True
-        # Managers / Admins see everyone's reports, but not private drafts -
+        # Managers see everyone's reports, but not private drafts -
         # a draft only becomes visible to them once it is submitted.
         return (
-            user.has_any_role(Role.MANAGER, Role.ADMIN)
+            user.has_any_role(Role.MANAGER)
             and report.status is not ReportStatus.DRAFT
         )
 

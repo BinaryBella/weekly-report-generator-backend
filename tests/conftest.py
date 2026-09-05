@@ -27,7 +27,7 @@ async def _init_db() -> AsyncIterator[None]:
 
 @pytest.fixture(autouse=True)
 def _bootstrap_admin(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``boss@example.com`` the bootstrap Admin for the duration of a test."""
+    """Make ``boss@example.com`` the bootstrap Manager for the duration of a test."""
     monkeypatch.setattr(settings, "bootstrap_admin_emails", ["boss@example.com"])
 
 

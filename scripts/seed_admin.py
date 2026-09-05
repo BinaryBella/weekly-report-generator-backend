@@ -1,13 +1,16 @@
-"""Create (or promote) an Admin user for local development.
+"""Create (or promote) a Manager user for local development.
+
+The system has only two roles: ``Team Member`` and ``Manager``. ``Manager`` is
+the fully privileged / "admin" role - there is no separate Admin.
 
 Usage:
     uv run python scripts/seed_admin.py
-    uv run python scripts/seed_admin.py --email dev.admin@example.com --password "S3cret-pass"
+    uv run python scripts/seed_admin.py --email dev.manager@example.com --password "S3cret-pass"
 
 Behaviour:
-    * If no user with the given email exists, one is created with the ``Admin``
+    * If no user with the given email exists, one is created with the ``Manager``
       role and an ``active`` status.
-    * If the user already exists, they are promoted to ``Admin`` (and re-enabled
+    * If the user already exists, they are promoted to ``Manager`` (and re-enabled
       if disabled). The password is only reset when ``--reset-password`` is given.
 
 Configuration falls back to the ``SEED_ADMIN_EMAIL`` / ``SEED_ADMIN_PASSWORD`` /
@@ -30,22 +33,22 @@ from app.core.security import hash_password  # noqa: E402
 from app.db.session import close_db, init_db  # noqa: E402
 from app.models.user import Role, User, UserStatus  # noqa: E402
 
-DEFAULT_EMAIL = "admin@weeklyreport.dev"
-DEFAULT_PASSWORD = "Admin@12345"
-DEFAULT_NAME = "Dev Admin"
+DEFAULT_EMAIL = "manager@weeklyreport.dev"
+DEFAULT_PASSWORD = "Manager@12345"
+DEFAULT_NAME = "Dev Manager"
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Seed or promote a development Admin user.")
+    parser = argparse.ArgumentParser(description="Seed or promote a development Manager user.")
     parser.add_argument(
         "--email",
         default=os.getenv("SEED_ADMIN_EMAIL", DEFAULT_EMAIL),
-        help=f"Admin email (default: {DEFAULT_EMAIL})",
+        help=f"Manager email (default: {DEFAULT_EMAIL})",
     )
     parser.add_argument(
         "--password",
         default=os.getenv("SEED_ADMIN_PASSWORD", DEFAULT_PASSWORD),
-        help="Admin password (used only when creating, or with --reset-password)",
+        help="Manager password (used only when creating, or with --reset-password)",
     )
     parser.add_argument(
         "--name",
@@ -71,18 +74,18 @@ async def _seed(email: str, password: str, name: str, reset_password: bool) -> N
                 name=name,
                 email=email,
                 hashed_password=hash_password(password),
-                role=Role.ADMIN,
+                role=Role.MANAGER,
                 status=UserStatus.ACTIVE,
             )
             await user.insert()
-            print(f"Created Admin user: {email}")
+            print(f"Created Manager user: {email}")
             print(f"Password: {password}")
             return
 
         changes: list[str] = []
-        if user.role is not Role.ADMIN:
-            user.role = Role.ADMIN
-            changes.append("role -> Admin")
+        if user.role is not Role.MANAGER:
+            user.role = Role.MANAGER
+            changes.append("role -> Manager")
         if user.status is not UserStatus.ACTIVE:
             user.status = UserStatus.ACTIVE
             changes.append("status -> active")
@@ -95,7 +98,7 @@ async def _seed(email: str, password: str, name: str, reset_password: bool) -> N
             await user.save()
             print(f"Updated existing user {email}: {', '.join(changes)}")
         else:
-            print(f"User {email} is already an active Admin - nothing to do.")
+            print(f"User {email} is already an active Manager - nothing to do.")
         if reset_password:
             print(f"Password: {password}")
     finally:

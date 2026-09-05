@@ -4,6 +4,10 @@
 module providing registration, JWT login/refresh/logout, bcrypt password hashing,
 stateless bearer-token sessions, and role-based access control.
 
+> The system has exactly **two roles**: `Team Member` and `Manager`. `Manager` is
+> the fully privileged role and serves as the admin — there is no separate Admin,
+> User, or Super Admin role.
+
 > Scope note: report-management endpoints and any frontend are intentionally **not**
 > included here.
 
@@ -45,7 +49,7 @@ app/
 │   └── v1/
 │       ├── auth.py      # /register /login /refresh /logout /me
 │       ├── users.py     # /users/  /users/{id}  /users/{id}/role  /users/{id}/status
-│       └── projects.py  # /projects/  /projects/{id}  /projects/{id}/members   (GET all roles; write ops Manager+Admin)
+│       └── projects.py  # /projects/  /projects/{id}  /projects/{id}/members   (GET any role; write ops Manager only)
 └── main.py              # app factory, lifespan, CORS, /health
 tests/                   # pytest suite (in-memory MongoDB)
 ```
@@ -120,16 +124,17 @@ running database required.
 | `BOOTSTRAP_ADMIN_EMAILS`     | *(empty)*                     | Comma-separated; see below                       |
 | `CORS_ALLOW_ORIGINS`         | `*`                           | Comma-separated origins (`*` = all, dev only)    |
 
-### Bootstrapping the first Admin
+### Bootstrapping the first Manager
 
 Self-registration **always** creates a `Team Member`; a client cannot request a
-privileged role. To seed the first `Admin`, list their email in
+privileged role. To seed the first `Manager`, list their email in
 `BOOTSTRAP_ADMIN_EMAILS`:
 
-- on **registration** with that email → the account is created as `Admin`;
+- on **registration** with that email → the account is created as `Manager`;
 - on **application startup** → any existing account with that email is promoted.
 
-From there, an Admin promotes others via `PATCH /users/{id}/role`.
+From there, a Manager promotes others via `PATCH /users/{id}/role`. (Any user
+still stored with the retired `Admin` role is migrated to `Manager` on startup.)
 
 ---
 
@@ -151,19 +156,21 @@ Base prefix: `/api/v1`
 
 | Method & path                 | Auth                | Description                       | Errors                  |
 |-------------------------------|---------------------|----------------------------------|-------------------------|
-| `GET  /users/`                | Manager, Admin      | List users (`skip/limit/role`)   | `401`, `403`            |
-| `GET  /users/{id}`            | self OR Mgr/Admin   | One user record                  | `401`, `403`, `404`     |
-| `PATCH /users/{id}/role`      | Admin               | `{role}` — reassign role         | `400` self, `403`, `404`|
-| `PATCH /users/{id}/status`    | Manager, Admin      | `{status}` — enable/disable      | `400` self, `403`, `404`|
+| `GET  /users/`                | Manager             | List users (`skip/limit/role`)   | `401`, `403`            |
+| `GET  /users/{id}`            | self OR Manager     | One user record                  | `401`, `403`, `404`     |
+| `POST /users/`               | Manager             | Create ("invite") a team member  | `400` dup email, `403`  |
+| `PATCH /users/{id}/role`      | Manager             | `{role}` — reassign role         | `400` self, `403`, `404`|
+| `PATCH /users/{id}/status`    | Manager             | `{status}` — enable/disable      | `400` self, `403`, `404`|
 
 ### RBAC matrix
 
-| Endpoint                  | Team Member    | Manager | Admin |
-|---------------------------|----------------|---------|-------|
-| `GET /users/`             | ❌ 403         | ✅      | ✅    |
-| `GET /users/{id}`         | own id only    | ✅ any  | ✅ any|
-| `PATCH /users/{id}/role`  | ❌ 403         | ❌ 403  | ✅    |
-| `PATCH /users/{id}/status`| ❌ 403         | ✅      | ✅    |
+| Endpoint                  | Team Member    | Manager |
+|---------------------------|----------------|---------|
+| `GET /users/`             | ❌ 403         | ✅      |
+| `GET /users/{id}`         | own id only    | ✅ any  |
+| `POST /users/`            | ❌ 403         | ✅      |
+| `PATCH /users/{id}/role`  | ❌ 403         | ✅      |
+| `PATCH /users/{id}/status`| ❌ 403         | ✅      |
 
 ---
 
@@ -172,28 +179,28 @@ Base prefix: `/api/v1`
 ```bash
 BASE=http://127.0.0.1:8000/api/v1
 
-# 1. Admin (email must be in BOOTSTRAP_ADMIN_EMAILS)
+# 1. Manager (email must be in BOOTSTRAP_ADMIN_EMAILS)
 curl -s -X POST $BASE/auth/register -H 'Content-Type: application/json' \
-  -d '{"name":"Boss","email":"admin@example.com","password":"password123"}'
+  -d '{"name":"Boss","email":"manager@example.com","password":"password123"}'
 
 # 2. Regular member
 curl -s -X POST $BASE/auth/register -H 'Content-Type: application/json' \
   -d '{"name":"Mia","email":"mia@example.com","password":"password123"}'
 
-# 3. Login as admin (note: form-encoded, username = email)
-ADMIN_TOKEN=$(curl -s -X POST $BASE/auth/login \
-  -d 'username=admin@example.com&password=password123' | jq -r .access_token)
+# 3. Login as the Manager (note: form-encoded, username = email)
+MANAGER_TOKEN=$(curl -s -X POST $BASE/auth/login \
+  -d 'username=manager@example.com&password=password123' | jq -r .access_token)
 
-# 4. List all users (Admin/Manager only)
-curl -s $BASE/users/ -H "Authorization: Bearer $ADMIN_TOKEN"
+# 4. List all users (Manager only)
+curl -s $BASE/users/ -H "Authorization: Bearer $MANAGER_TOKEN"
 
 # 5. Promote Mia to Manager  (grab her id from step 4)
 curl -s -X PATCH $BASE/users/<MIA_ID>/role \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Authorization: Bearer $MANAGER_TOKEN" \
   -H 'Content-Type: application/json' -d '{"role":"Manager"}'
 
 # 6. Logout — the access token is now denylisted
-curl -s -X POST $BASE/auth/logout -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -s -X POST $BASE/auth/logout -H "Authorization: Bearer $MANAGER_TOKEN"
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/auth/me \
-  -H "Authorization: Bearer $ADMIN_TOKEN"   # -> 401
+  -H "Authorization: Bearer $MANAGER_TOKEN"   # -> 401
 ```

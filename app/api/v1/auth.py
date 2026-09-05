@@ -64,8 +64,9 @@ async def register(payload: SignupRequest) -> UserResponse:
     """Create a new account.
 
     The new user is always assigned the ``Team Member`` role unless their email
-    appears in ``BOOTSTRAP_ADMIN_EMAILS``, in which case they are made an
-    ``Admin``. Elevation to ``Manager`` afterwards is an Admin-only operation.
+    appears in ``BOOTSTRAP_ADMIN_EMAILS`` (the seed for the first privileged
+    account), in which case they are made a ``Manager``. Promotion to
+    ``Manager`` afterwards is a Manager-only operation.
 
     Raises:
         HTTPException: ``400`` if the email is already registered.
@@ -77,7 +78,9 @@ async def register(payload: SignupRequest) -> UserResponse:
             detail="A user with this email already exists",
         )
 
-    role = Role.ADMIN if settings.is_bootstrap_admin(email) else Role.TEAM_MEMBER
+    role = (
+        Role.MANAGER if settings.is_bootstrap_admin(email) else Role.TEAM_MEMBER
+    )
     user = User(
         name=payload.name,
         email=email,
